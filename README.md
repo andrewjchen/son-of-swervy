@@ -1,4 +1,4 @@
 son-of-swervy
 =============
 
-software for PiE Omnidirectional base
+Omnidirectional base
