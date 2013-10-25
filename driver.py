@@ -1,27 +1,57 @@
 #!/usr/bin/env python
 import serial
 import time
+import PID
+
+class Caster:
+    """ A controlled steerable wheel.
+    Currently uses a servo to rotate and a potentiometer for feedback.
+    """
+
+    driveChannel = -1
+    senseChannel = -1
+    pid = PID.PID(P=5)
+    device = 12
+
+    def __init__(self, serial, driveChannel, senseChannel, zero):
+        self.serial = serial
+        self.driveChannel = driveChannel
+        self.senseChannel = senseChannel 
+        self.zero = zero
+
+    def setAngle(self, angle):
+        """ sets the controller setpoint """
+        self.pid.setPoint(angle)
+
+    def tick(self):
+        """ performs a control loop tick. """
+        out = self.pid.update(
+            getPosition(self.serial, self.device, self.senseChannel))
+        setVelocity(
+            self.serial,
+            self.device,
+            self.driveChannel,
+            int(out),
+            self.zero)
 
 def driveChannel(serial, channel, command):
-    '''
-    Drives a servo on CHANNEL with a target command
+    """ Drives a servo on CHANNEL with a target command
     SERIAL is the serial device the maestro is attached to.
     CHANNEL refers to the servo channel [0...5] on a umaestro.
     COMMAND is an unsigned byte [0...254]
     This uses the miniSSC protocol.
-    '''
+    """
     serial.write(chr(0xFF))
     serial.write(chr(channel))
     serial.write(chr(command))
 
 def pololuDrive(serial, device, channel, target):
-    '''
-    Drives a servo on a maestro using the pololu protocol.
+    """ Drives a servo on a maestro using the pololu protocol.
     SERIAL is the serial device the maestro is attached to.
     DEVICE is the maestro device number. (default 12)
     CHANNEL is the servo's channel number [1...6] on micromaestro.
     TARGET is the pulse width in microseconds.
-    '''
+    """
     serial.write(chr(0xAA)) # 0xAA
     serial.write(chr(device))
     serial.write(chr(4))
@@ -30,27 +60,28 @@ def pololuDrive(serial, device, channel, target):
     serial.write(chr(((target*4) >> 7) & 0x7F))
 
 def getPosition(serial, device, channel):
-    '''
-    Accesses the position of a channel using the pololu protocol.
+    """ Accesses the position of a channel using the pololu protocol.
     SERIAL is the serial device the maestro is attached to.
     DEVICE is the maestro device number. (default 12)
     CHANNEL is the channel to sample.
 
     When the channel is an analog channel, it reports a value [0...1023].
-    '''
+    """
     serial.write(chr(0xAA))
     serial.write(chr(device))
     serial.write(chr(0x10))
     serial.write(chr(channel))
     return ord(serial.read(1)) + 256 * ord(serial.read(1))
 
+def setVelocity(serial, device, channel, velocity, zero):
+    pololuDrive(serial, device, channel, velocity + zero)
+
 if __name__ == '__main__':
     global serial
     print "starting driver.py..."
     serial = serial.Serial("/dev/ttyUSB0", baudrate=57600)
-    while True:
-        print("0:{0} \t 1:{1} \t 2:{2}".format(
-            getPosition(serial, 12, 3),
-            getPosition(serial, 12, 4),
-            getPosition(serial, 12, 5)))
 
+    caster_a = Caster(serial, 0, 3, 1520)
+    caster_a.setAngle(700)
+    while True:
+        caster_a.tick()
