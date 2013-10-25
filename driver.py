@@ -10,8 +10,10 @@ class Caster:
 
     driveChannel = -1
     senseChannel = -1
-    pid = PID.PID(P=5)
+    pid = PID.PID(P=2)
     device = 12
+    last_time = time.time()
+    fps = 0
 
     def __init__(self, serial, driveChannel, senseChannel, zero):
         self.serial = serial
@@ -25,6 +27,9 @@ class Caster:
 
     def tick(self):
         """ performs a control loop tick. """
+        now = time.time()
+        self.fps = (now - self.last_time) * 0.9 + self.fps * 0.1
+        self.last_time = now
         out = self.pid.update(
             getPosition(self.serial, self.device, self.senseChannel))
         setVelocity(
@@ -79,9 +84,17 @@ def setVelocity(serial, device, channel, velocity, zero):
 if __name__ == '__main__':
     global serial
     print "starting driver.py..."
-    serial = serial.Serial("/dev/ttyUSB0", baudrate=57600)
+    serial = serial.Serial("/dev/ttyUSB0", baudrate=250000)
 
     caster_a = Caster(serial, 0, 3, 1520)
+    caster_b = Caster(serial, 1, 4, 1530)
+    caster_c = Caster(serial, 2, 5, 1548)
     caster_a.setAngle(700)
+    caster_b.setAngle(700)
+    caster_c.setAngle(700)
+
+
     while True:
         caster_a.tick()
+        caster_b.tick()
+        caster_c.tick()
